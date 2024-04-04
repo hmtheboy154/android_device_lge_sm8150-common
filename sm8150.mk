@@ -249,10 +249,6 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PACKAGES += \
     android.hardware.keymaster@4.1.vendor
 
-# Livedisplay
-PRODUCT_PACKAGES += \
-    vendor.lineage.livedisplay@2.0-service.lge
-
 # Media
 PRODUCT_PACKAGES += \
     android.hardware.media.c2@1.0.vendor \
