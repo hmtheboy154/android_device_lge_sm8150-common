@@ -20,6 +20,7 @@
 # Need to have this entry in here even though the mount point itself is no longer needed.
 # The update_engine code looks for this entry in order to determine the boot device address
 # and fails if it does not find it.
+/dev/block/by-name/vbmeta                                            /vbmeta                 emmc    defaults                                                                slotselect,avb,first_stage_mount
 /dev/block/bootdevice/by-name/misc                                   /misc                   emmc    defaults                                                                defaults
 /dev/block/bootdevice/by-name/ftm                                    /ftm                    emmc    defaults                                                                defaults
 /dev/block/bootdevice/by-name/sns                                    /mnt/vendor/sns         ext4    nosuid,nodev,barrier=1,noatime,noauto_da_alloc,errors=continue          wait,check,formattable
