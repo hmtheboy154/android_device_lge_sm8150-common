@@ -641,6 +641,9 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_BUS_RSE] = "bus-speaker",
     [SND_DEVICE_OUT_CALL_PROXY] = "call-proxy",
 
+    /* ESS Audio Devices */
+    [SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC] = "headphones-hifi-dac",
+
     /* Capture sound devices */
     [SND_DEVICE_IN_HANDSET_MIC] = "handset-mic",
     [SND_DEVICE_IN_HANDSET_MIC_SB] = "handset-mic",
@@ -2361,6 +2364,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS] = strdup("bt-sco-mmsecns");
     backend_tag_table[SND_DEVICE_OUT_CALL_PROXY] = strdup("call-proxy");
     backend_tag_table[SND_DEVICE_IN_CALL_PROXY] = strdup("call-proxy-in");
+    backend_tag_table[SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC] = strdup("TERT_MI2S_RX");
 
     hw_interface_table[SND_DEVICE_OUT_HANDSET] = strdup("SLIMBUS_0_RX");
     hw_interface_table[SND_DEVICE_OUT_SPEAKER] = strdup("SLIMBUS_0_RX");
@@ -2600,6 +2604,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_VOICE_HEARING_AID] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_BUS] = strdup("TERT_TDM_TX_0");
     hw_interface_table[SND_DEVICE_IN_CALL_PROXY] = strdup("CALL_PROXY_TX");
+    hw_interface_table[SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC] = strdup("TERT_MI2S_RX");
     my_data->max_mic_count = PLATFORM_DEFAULT_MIC_COUNT;
 
      /*remove ALAC & APE from DSP decoder list based on software decoder availability*/
@@ -6511,6 +6516,17 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         if (compare_device_type(&devices, AUDIO_DEVICE_OUT_WIRED_HEADPHONE) ||
             compare_device_type(&devices, AUDIO_DEVICE_OUT_WIRED_HEADSET) ||
             compare_device_type(&devices, AUDIO_DEVICE_OUT_LINE)) {
+
+/* LINEAGEOS LGE CHANGES START */
+// Implement Hi-Fi Quad DAC feature.
+// If DAC is enabled, return the DAC output device
+            bool enable_hifi_dac = property_get_bool("persist.vendor.audio.hifi.enabled", false);
+            if (enable_hifi_dac) {
+                snd_device = SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC;
+                goto exit;
+            }
+/* LINEAGEOS LGE CHANGES END */
+
             if ((adev->voice.tty_mode != TTY_MODE_OFF) &&
                 !voice_extn_compress_voip_is_active(adev)) {
                 switch (adev->voice.tty_mode) {
@@ -8471,6 +8487,49 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
             platform_set_hfp_zone(my_data, zone);
     }
 
+/* LINEAGEOS LGE CHANGES START */
+// Add parameters to enable/disable the Hi-Fi Quad DAC feature
+    err = str_parms_get_str(parms, "hifi_dac", value, sizeof(value));
+    if (err >= 0) {
+        struct audio_usecase *usecase;
+        struct listnode *node;
+        list_for_each(node, &my_data->adev->usecase_list) {
+            usecase = node_to_item(node, struct audio_usecase, list);
+            bool is_hifi_dac_enabled = property_get_bool("persist.vendor.audio.hifi.enabled",
+                false);
+            if (!strncmp(value, "on", 2)) {
+                if(is_hifi_dac_enabled) {
+                    ALOGD("LGE Hi-Fi DAC: already enabled!");
+                    ret = -EINVAL;
+                    goto done;
+                }
+                ALOGD("Enabling Hi-Fi Quad DAC.");
+                property_set("persist.vendor.audio.hifi.enabled", "true");
+            } else if (!strncmp(value, "off", 3)) {
+                if (!is_hifi_dac_enabled) {
+                    ALOGD("LGE Hi-Fi DAC: already disabled!");
+                    ret = -EINVAL;
+                    goto done;
+                }
+                ALOGD("Disabling Hi-Fi Quad DAC.");
+                property_set("persist.vendor.audio.hifi.enabled", "false");
+            } else {
+                ALOGE("LGE Hi-Fi DAC: Invalid parameter");
+                ret = -EINVAL;
+                goto done;
+            }
+
+            // If this was triggered during playback, switch immediately!
+            if (usecase->stream.out && (usecase->type == PCM_PLAYBACK) &&
+                (usecase->devices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE)) {
+                // Trigger a switch to Hi-Fi DAC
+                select_devices(my_data->adev, usecase->id);
+            }
+            break;
+        }
+    }
+/* LINEAGEOS LGE CHANGES END */
+
     platform_set_fluence_params(platform, parms, value, len);
 
     /* handle audio calibration parameters */
@@ -10206,6 +10265,16 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
             }
         }
     }
+
+/* LINEAGEOS LGE CHANGES START */
+// Apply mixer path to enable/disable Hi-Fi Quad DAC feature
+    if (snd_device == SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC) {
+        bool enable_hifi_dac = property_get_bool("persist.vendor.audio.hifi.enabled", false);
+        ALOGD("%s: %s Hi-Fi Quad DAC", __func__, enable_hifi_dac ? "Enabling" : "Disabling");
+        audio_route_apply_and_update_path(adev->audio_route,
+            enable_hifi_dac ? "ess-hifi-mode" : "ess-bypass-mode");
+    }
+/* LINEAGEOS LGE CHANGES END */
 
     return backend_change;
 }
