@@ -13,7 +13,7 @@ $(call inherit-product, frameworks/native/build/phone-xhdpi-6144-dalvik-heap.mk)
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += \
     $(LOCAL_PATH)/overlay \
-    $(LOCAL_PATH)/overlay-lineage
+    $(LOCAL_PATH)/overlay-bliss
 
 PRODUCT_ENFORCE_RRO_TARGETS := *
 
@@ -186,7 +186,7 @@ PRODUCT_PACKAGES += \
     fastbootd
 
 # Fingerprint
-ifneq ($(filter alphaplus betalm flashlm flashlmdd,$(shell echo $(TARGET_PRODUCT) | sed 's/^lineage_//')),)
+ifneq ($(filter alphaplus betalm flashlm flashlmdd,$(shell echo $(TARGET_PRODUCT) | sed 's/^bliss_//')),)
 PRODUCT_PACKAGES += \
     android.hardware.biometrics.fingerprint@2.1-service.lge_sm8150
 endif
